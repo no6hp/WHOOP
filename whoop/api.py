@@ -23,8 +23,22 @@ SCOPES = [
 ]
 
 
+# WHOOP's edge firewall rejects the default "Python-urllib" user agent with HTTP 403.
+USER_AGENT = "whoop-coach/1.0 (+https://github.com/no6hp/WHOOP)"
+
+
 class WhoopError(RuntimeError):
     pass
+
+
+def _error_detail(e: urllib.error.HTTPError) -> str:
+    """Short, token-free description of an error response."""
+    try:
+        body = json.loads(e.read())
+        parts = [str(body.get(k)) for k in ("error", "error_description") if body.get(k)]
+        return f" ({': '.join(parts)})" if parts else ""
+    except Exception:
+        return ""
 
 
 def authorization_url(client_id: str, redirect_uri: str) -> str:
@@ -44,14 +58,15 @@ def _post_form(url: str, data: dict) -> dict:
     req = urllib.request.Request(
         url,
         data=body,
-        headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json",
+                 "User-Agent": USER_AGENT},
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as e:
-        # Never echo the response body: it may contain tokens.
-        raise WhoopError(f"Token request failed: HTTP {e.code}") from None
+        # Error responses carry no tokens; only the OAuth error fields are shown.
+        raise WhoopError(f"Token request failed: HTTP {e.code}{_error_detail(e)}") from None
 
 
 def _with_expiry(tok: dict, previous: dict | None = None) -> dict:
@@ -97,7 +112,8 @@ class Client:
         if params:
             url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
         req = urllib.request.Request(
-            url, headers={"Authorization": f"Bearer {self.access_token}", "Accept": "application/json"}
+            url, headers={"Authorization": f"Bearer {self.access_token}", "Accept": "application/json",
+                          "User-Agent": USER_AGENT}
         )
         for attempt in range(5):
             try:

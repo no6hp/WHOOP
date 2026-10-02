@@ -26,7 +26,6 @@ jobs:
       WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
       WHOOP_DATA_KEY: ${{ secrets.WHOOP_DATA_KEY }}
       WHOOP_REDIRECT_URI: https://github.com/${{ github.repository }}
-      REDIRECT_URL: ${{ inputs.redirect_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,7 +50,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Log in and run first sync
         if: inputs.redirect_url != ''
+        # Read the URL from the event payload (not env/expressions) so it never appears in the log.
         run: |
+          REDIRECT_URL=$(jq -r '.inputs.redirect_url // ""' "$GITHUB_EVENT_PATH")
           echo "::add-mask::$REDIRECT_URL"
           scripts/data-branch.sh checkout
           python -m whoop login "$REDIRECT_URL"
