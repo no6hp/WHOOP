@@ -7,13 +7,14 @@ notifications from scheduled Claude routines. **Write all reports in German, usi
 - `whoop/` – stdlib-only Python package (`python3 -m whoop auth-url|login|sync|digest`).
   - `api.py` WHOOP OAuth2 + v2 API, `sync.py` incremental fetch, `store.py` openssl-AES storage,
     `digest.py` statistics → Markdown digest, `reference.py` comparison with published norms.
-- `.github/workflows/whoop-sync.yml` – hourly sync; `whoop-setup.yml` – one-time login.
+- `.github/workflows/whoop-sync.yml` – sync every 15 min; `whoop-setup.yml` – one-time login.
 - Encrypted data + tokens live on branch `whoop-data` (checked out to `./state`, git-ignored).
 - **The repo is public.** Never commit, print in CI, or post (issues/PRs) any decrypted data or tokens.
 - Tests: `python3 -m unittest discover -s tests`.
 
 ## Writing a report (scheduled routine)
-1. Run `scripts/report.sh <morning|evening|weekly>`. If `WHOOP_DATA_KEY` is missing or the
+1. Run `scripts/report.sh <morning|evening|weekly>`. Every report starts with the line
+   "🕒 Datenstand: …" taken verbatim from the digest header (newest WHOOP measurement + last fetch). If `WHOOP_DATA_KEY` is missing or the
    data is stale (>3 h, see the digest header), say so briefly and stop – no made-up numbers.
 2. Your **final message is the report** – it goes to the phone as a push notification. Do not
    commit anything, open a PR or create files.
