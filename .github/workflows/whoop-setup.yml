@@ -1,0 +1,58 @@
+name: WHOOP Setup (Login)
+
+# Step 1: run with an empty field -> the job summary shows your WHOOP login link.
+# Step 2: open it, allow access, copy the full URL you land on, run again and paste it.
+on:
+  workflow_dispatch:
+    inputs:
+      redirect_url:
+        description: "Leer lassen für den Login-Link – danach die komplette URL nach dem Login hier einfügen"
+        required: false
+        default: ""
+
+concurrency:
+  group: whoop-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WHOOP_CLIENT_ID: ${{ secrets.WHOOP_CLIENT_ID }}
+      WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
+      WHOOP_DATA_KEY: ${{ secrets.WHOOP_DATA_KEY }}
+      WHOOP_REDIRECT_URI: https://github.com/${{ github.repository }}
+      REDIRECT_URL: ${{ inputs.redirect_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check secrets
+        run: |
+          for s in WHOOP_CLIENT_ID WHOOP_CLIENT_SECRET WHOOP_DATA_KEY; do
+            [ -n "${!s}" ] || { echo "::error::Secret $s fehlt (Settings → Secrets and variables → Actions)"; exit 1; }
+          done
+      - name: Show login link
+        if: inputs.redirect_url == ''
+        run: |
+          {
+            echo "## Schritt 1: Bei WHOOP anmelden"
+            echo "1. Diesen Link öffnen und Zugriff erlauben: [WHOOP Login]($(python -m whoop auth-url))"
+            echo "2. Du landest auf der GitHub-Seite dieses Repos. Kopiere die **komplette Adresse** aus der Adresszeile."
+            echo "3. Workflow erneut starten und die Adresse ins Feld einfügen (innerhalb weniger Minuten)."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Log in and run first sync
+        if: inputs.redirect_url != ''
+        run: |
+          echo "::add-mask::$REDIRECT_URL"
+          scripts/data-branch.sh checkout
+          python -m whoop login "$REDIRECT_URL"
+          scripts/data-branch.sh push "login"
+          python -m whoop sync
+          scripts/data-branch.sh push "initial sync"
+          echo "## ✅ Verbunden – erste Daten (bis 120 Tage) synchronisiert." >> "$GITHUB_STEP_SUMMARY"
