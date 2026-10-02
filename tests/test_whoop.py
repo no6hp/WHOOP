@@ -163,6 +163,19 @@ class ApiTest(unittest.TestCase):
         self.assertIn("offline", url)
         self.assertRegex(url, r"state=[0-9a-f]{16}")
 
+    def test_requests_send_custom_user_agent(self):
+        import io
+        seen = []
+
+        def fake_urlopen(req, timeout=None):
+            seen.append(req.get_header("User-agent"))
+            return io.BytesIO(b'{"access_token": "a", "refresh_token": "r", "records": []}')
+
+        with mock.patch("urllib.request.urlopen", fake_urlopen):
+            api.exchange_code("i", "s", "https://x", "c")
+            api.Client("a").collection("/v2/cycle")
+        self.assertEqual(seen, [api.USER_AGENT, api.USER_AGENT])
+
     def test_refresh_keeps_old_token_if_not_rotated(self):
         with mock.patch.object(api, "_post_form", return_value={"access_token": "a", "expires_in": 3600}):
             self.assertEqual(api.refresh("i", "s", {"refresh_token": "r"})["refresh_token"], "r")
