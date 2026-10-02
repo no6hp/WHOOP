@@ -150,6 +150,12 @@ class StoreAndSyncTest(unittest.TestCase):
         self.assertIn("Recovery", digest.build(db, "morning", NOW))
 
 
+class CredentialsTest(unittest.TestCase):
+    def test_strips_pasted_whitespace_and_quotes(self):
+        with mock.patch.dict(os.environ, {"WHOOP_CLIENT_ID": ' "abc-123"\n', "WHOOP_CLIENT_SECRET": "s3 \n"}):
+            self.assertEqual(sync.credentials(), ("abc-123", "s3"))
+
+
 class ApiTest(unittest.TestCase):
     def test_auth_url(self):
         url = api.authorization_url("cid", "https://github.com/x/y")

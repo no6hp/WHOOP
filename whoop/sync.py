@@ -24,9 +24,14 @@ def _start_of(kind: str, rec: dict) -> str:
     return rec.get("start") or rec.get("created_at") or ""
 
 
+def _clean(value: str) -> str:
+    # Pasted secrets often carry stray whitespace, line breaks or quotes.
+    return value.strip().strip("\"'").strip()
+
+
 def credentials() -> tuple[str, str]:
     try:
-        return os.environ["WHOOP_CLIENT_ID"], os.environ["WHOOP_CLIENT_SECRET"]
+        return _clean(os.environ["WHOOP_CLIENT_ID"]), _clean(os.environ["WHOOP_CLIENT_SECRET"])
     except KeyError as e:
         raise SystemExit(f"Missing environment variable {e}") from None
 
