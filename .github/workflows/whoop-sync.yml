@@ -1,0 +1,37 @@
+name: WHOOP Sync
+
+# Hourly pull of new WHOOP data into the encrypted `whoop-data` branch.
+# NOTE: this repo is public, so logs must never contain tokens or health data.
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: whoop-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WHOOP_CLIENT_ID: ${{ secrets.WHOOP_CLIENT_ID }}
+      WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
+      WHOOP_DATA_KEY: ${{ secrets.WHOOP_DATA_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check out data branch
+        run: scripts/data-branch.sh checkout
+      - name: Sync
+        run: python -m whoop sync
+      - name: Save
+        # Always save: a token refresh must be persisted even if the data fetch failed afterwards.
+        if: always()
+        run: scripts/data-branch.sh push "sync $(date -u +%FT%TZ)"
