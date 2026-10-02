@@ -82,5 +82,7 @@ def sync(now: datetime | None = None) -> dict:
 
     if changed or not last:
         db["synced_at"] = now.isoformat()
-        store.save(store.DATA_FILE, db)
+    # Record every successful check, so reports can tell "no new data" from "sync broken".
+    db["checked_at"] = now.isoformat()
+    store.save(store.DATA_FILE, db)
     return {"changed": changed, "fetched": counts}

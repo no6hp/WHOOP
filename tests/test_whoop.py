@@ -67,13 +67,27 @@ class DigestTest(unittest.TestCase):
             with mock.patch.dict(os.environ, {"WHOOP_BIRTH_YEAR": "1990"}):
                 out = digest.build(db, mode, NOW)
             self.assertIn("WHOOP Digest", out)
-            self.assertNotIn("Daten sind älter", out)
+            self.assertNotIn("älter als 3 h", out)
             if mode != "evening":
                 self.assertIn("Einordnung nach Fachstandards", out)
                 self.assertIn("vs. Median", out)
         self.assertIn("Recovery:", digest.build(db, "morning", NOW))
         self.assertIn("ins Bett bis ca.", digest.build(db, "evening", NOW))
         self.assertIn("Wochenvergleich", digest.build(db, "weekly", NOW))
+
+    def test_data_timestamp_in_berlin_time(self):
+        db = fake_db(days=5)
+        db["checked_at"] = (NOW - timedelta(minutes=25)).isoformat()   # 07:05 UTC
+        out = digest.build(db, "morning", NOW)
+        # Newest record ends 07:30 UTC -> 09:30 Berlin (CEST); last check 09:05.
+        self.assertIn("Datenstand: heute 09:30 Uhr", out)
+        self.assertIn("zuletzt abgerufen heute 09:05 Uhr", out)
+
+    def test_no_stale_warning_when_checked_recently_without_new_data(self):
+        db = fake_db(days=5)
+        db["synced_at"] = (NOW - timedelta(hours=8)).isoformat()
+        db["checked_at"] = (NOW - timedelta(minutes=30)).isoformat()
+        self.assertNotIn("älter als 3 h", digest.build(db, "morning", NOW))
 
     def test_activity_minutes(self):
         out = digest.build(fake_db(), "evening", NOW)
@@ -90,7 +104,7 @@ class DigestTest(unittest.TestCase):
     def test_stale_warning(self):
         db = fake_db(days=5)
         db["synced_at"] = (NOW - timedelta(hours=5)).isoformat()
-        self.assertIn("Daten sind älter", digest.build(db, "morning", NOW))
+        self.assertIn("älter als 3 h", digest.build(db, "morning", NOW))
 
 
 class StoreAndSyncTest(unittest.TestCase):
