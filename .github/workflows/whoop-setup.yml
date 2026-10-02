@@ -40,8 +40,11 @@ jobs:
       - name: Show login link
         if: inputs.redirect_url == ''
         run: |
+          ID=$(python -c "from whoop import sync; print(sync.credentials()[0])")
           {
             echo "## Schritt 1: Bei WHOOP anmelden"
+            echo "_Kontrolle: gespeicherte Client ID beginnt mit **${ID:0:4}** und endet mit **${ID: -4}** (${#ID} Zeichen). Muss exakt zur Client ID im WHOOP-Dashboard passen._"
+            echo
             echo "1. Diesen Link öffnen und Zugriff erlauben: [WHOOP Login]($(python -m whoop auth-url))"
             echo "2. Du landest auf der GitHub-Seite dieses Repos. Kopiere die **komplette Adresse** aus der Adresszeile."
             echo "3. Workflow erneut starten und die Adresse ins Feld einfügen (innerhalb weniger Minuten)."
