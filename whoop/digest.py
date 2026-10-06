@@ -6,10 +6,12 @@ and writes the coaching text on top. See CLAUDE.md for the coaching rules.
 
 import statistics
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from . import reference
 
 H = 3_600_000  # ms per hour
+TZ = ZoneInfo("Europe/Berlin")
 
 
 # ---------- helpers ----------
@@ -48,6 +50,33 @@ def _hm(ms: float | None) -> str:
 
 def _wd(d) -> str:
     return ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"][d.weekday()]
+
+
+def _stamp(dt: datetime | None, now: datetime) -> str:
+    """'heute 19:05 Uhr' / 'gestern 23:40 Uhr' / 'Mi 30.09., 08:12 Uhr' in Berlin time."""
+    if dt is None:
+        return "unbekannt"
+    loc, today = dt.astimezone(TZ), now.astimezone(TZ).date()
+    if loc.date() == today:
+        day = "heute"
+    elif loc.date() == today - timedelta(days=1):
+        day = "gestern"
+    else:
+        day = f"{_wd(loc.date())[:2]} {loc:%d.%m.}"
+    return f"{day} {loc:%H:%M} Uhr"
+
+
+def _latest_record(db: dict) -> datetime | None:
+    """Newest timestamp WHOOP reported for any record (when its data last changed)."""
+    best = None
+    for kind in ("cycles", "recoveries", "sleeps", "workouts"):
+        for r in db.get(kind, {}).values():
+            for key in ("updated_at", "end", "start"):
+                t = _dt(r.get(key)) if r.get(key) else None
+                if t:
+                    best = t if best is None or t > best else best
+                    break
+    return best
 
 
 def _clock(dt: datetime | None) -> str:
@@ -309,15 +338,19 @@ def build(db: dict, mode: str = "morning", now: datetime | None = None) -> str:
     if not d.rows:
         return "# WHOOP Digest\n\nNoch keine Daten vorhanden – Synchronisierung prüfen."
     i = len(d.rows) - 1
-    synced = _dt(db.get("synced_at"))
-    age_h = (now - synced).total_seconds() / 3600 if synced else None
+    checked = _dt(db.get("checked_at") or db.get("synced_at"))
+    age_h = (now - checked).total_seconds() / 3600 if checked else None
+    latest = _latest_record(db)
+    if latest and latest > now:
+        latest = now
     today = d.rows[i]
 
     title = {"morning": "Morgen", "evening": "Abend", "weekly": "Wochen-Check"}.get(mode, mode)
     L = [f"# WHOOP Digest – {title}, {_wd(today['date'])} {today['date']:%d.%m.%Y}",
-         f"_Daten synchronisiert vor {_fmt(age_h, 1)} h; {len(d.rows)} Tage Historie._"]
+         f"**🕒 Datenstand: {_stamp(latest, now)}** (neueste WHOOP-Messung) · "
+         f"zuletzt abgerufen {_stamp(checked, now)} · {len(d.rows)} Tage Historie"]
     if age_h is not None and age_h > 3:
-        L.append("⚠️ **Daten sind älter als 3 h – Sync-Workflow prüfen.**")
+        L.append("⚠️ **Letzter Abruf ist älter als 3 h – Sync-Workflow prüfen.**")
     if db.get("profile"):
         p, b = db["profile"], db.get("body") or {}
         L.append(f"_Person: {p.get('first_name', '')}, max HF {_fmt(b.get('max_heart_rate'))}, "
